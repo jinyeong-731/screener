@@ -23,15 +23,9 @@
 ```bash
 cd screener
 pip install -r requirements.txt
-copy .env.example .env
 ```
 
-`.env`를 열어 [openrouter.ai/keys](https://openrouter.ai/keys)에서 발급받은 API 키를 넣습니다. **지표조회/체크리스트는 API 키 없이도 동작**하고, 종합판단(LLM 해석)에만 필요합니다.
-
-```
-OPENROUTER_API_KEY=sk-or-v1-...
-OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
-```
+종합판단(LLM 해석) 기능을 쓰려면 `.env.example`을 참고해 `.env`를 만들고 OpenRouter API 키를 설정하세요. 지표조회/체크리스트는 키 없이도 동작합니다.
 
 ## 실행
 
