@@ -42,6 +42,16 @@ python main.py
 
 의도가 애매한 질문(키워드 매칭도, LLM 분류도 실패한 경우)은 셋 중 어떤 걸 원하는지 번호로 되묻습니다.
 
+### 웹 UI (Streamlit)
+
+터미널 대신 브라우저에서 클릭해서 써보고 싶다면:
+
+```bash
+streamlit run app.py
+```
+
+CLI와 동일하게 `pipeline.py`를 그대로 가져다 쓰는 화면일 뿐이라, 판정 로직은 완전히 같습니다.
+
 ## 프로젝트 구조
 
 ```
@@ -49,9 +59,10 @@ screener/
 ├── tools.py       # 도구 6개 (get_ticker, get_quarterly_financials, get_price_history,
 │                  #            calc_growth_metrics, calc_trend_metrics, check_sepa_conditions)
 ├── pipeline.py    # 핵심 로직 — 의도분류·티커추출·조회·계산·판정을 잇는 파이프라인
-│                  #   (input()/print() 없음 — 나중에 FastAPI가 run_pipeline()을 그대로 가져다 씀)
+│                  #   (input()/print() 없음 — CLI/웹 UI/이후 FastAPI가 run_pipeline()을 그대로 가져다 씀)
 ├── llm.py         # OpenRouter 호출 — LLM 의도분류 보조 + Reflexion 방식 종합판단 해석
 ├── main.py        # CLI (input()/print() 전담)
+├── app.py         # 웹 UI (Streamlit 전담)
 ├── .env.example
 ├── .gitignore
 └── requirements.txt
@@ -66,6 +77,7 @@ screener/
 - **재시도 정책**: yfinance 호출은 지수 백오프 3회(1→2→4초)로 재시도하며, 네트워크 오류와 "이 종목은 원래 데이터가 없음"을 구분합니다(`tools.py`에 구현).
 - **판정 보류 우선**: 펀더멘털·트렌드 중 하나라도 계산에 실패하면 체크리스트/종합판단은 무조건 판정을 보류합니다.
 - **Reflexion (Self-Consistency 아님)**: 종합판단의 LLM 해석은 정답이 하나로 정해진 계산이 아니라 개방형 설명이라, 여러 번 생성해 다수결을 내는 Self-Consistency 대신 1회 생성 → 1회 자기검증(판정 결과와 모순되지 않는지, 근거 없는 말을 지어내지 않았는지) 방식을 씁니다.
+- **NaN 종가 방어**: yfinance가 반환하는 1년치 종가 중 단 하나만 NaN이어도, 파이썬 기본 `max()`/`min()`은 그 이후 비교가 깨져 52주 최고/최저가 통째로 `nan`이 됩니다. 이 `nan`이 조용히 "계산 성공"으로 통과해버리면 판정 보류 대신 잘못된 FAIL/PASS가 나갈 수 있어서, `pipeline.py`에서 `calc_trend_metrics`를 부르기 전에 NaN 종가를 미리 걸러냅니다(실제 NVDA 데이터로 테스트하다 발견).
 
 ## 알려진 한계
 

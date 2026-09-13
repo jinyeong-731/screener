@@ -6,6 +6,7 @@ CLI(main.py)와 이후 FastAPI 서버가 동일하게 가져다 쓸 수 있도�
 asyncio.to_thread로 감싸 별도 스레드에서 실행한다.
 """
 import asyncio
+import math
 from typing import Optional
 
 from tools import (
@@ -104,6 +105,20 @@ async def _fetch_prices(ticker: str) -> dict:
     return await asyncio.to_thread(get_price_history, ticker)
 
 
+def _drop_nan_closes(closes: list) -> list:
+    """종가 리스트에서 NaN(결측치)을 제거한다(What).
+    calc_trend_metrics를 부르기 전에 항상 거쳐야 한다(When) — 실제 NVDA 데이터로 테스트하다
+    발견한 문제: yfinance가 반환하는 1년치 종가 중 단 하나만 NaN이어도, calc_trend_metrics가
+    쓰는 파이썬 기본 max()/min()은 리스트에 NaN이 있으면 그 이후 비교가 전부 깨져
+    최종 결과가 통째로 nan이 되어버린다(파이썬 max/min의 잘 알려진 함정). 그 nan이
+    check_sepa_conditions에서는 "계산 성공(status=ok)"으로 통과해버려서, 원래는
+    "판정 보류"돼야 할 상황이 엉뚱하게 FAIL/PASS로 잘못 나온다.
+    tools.py는 수정하지 않기로 했으므로, calc_trend_metrics에 넘기기 전
+    여기서 미리 걸러낸다(Constraints).
+    """
+    return [c for c in closes if not math.isnan(c)]
+
+
 async def run_pipeline(question: str, intent_override: Optional[str] = None) -> dict:
     """전체 파이프라인을 실행한다(What). CLI와 FastAPI가 공통으로 호출하는 진입점(When).
 
@@ -181,7 +196,7 @@ async def run_pipeline(question: str, intent_override: Optional[str] = None) -> 
     trace["calls"].append({"tool": "calc_growth_metrics", "args": {}})
 
     if price_ok:
-        trend = calc_trend_metrics(price_result["closes"])
+        trend = calc_trend_metrics(_drop_nan_closes(price_result["closes"]))
     else:
         trend = {"status": "error", "detail": price_result.get("error", "FETCH_FAILED")}
     trace["calls"].append({"tool": "calc_trend_metrics", "args": {}})
